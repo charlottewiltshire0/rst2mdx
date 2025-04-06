@@ -1,0 +1,44 @@
+{
+  "name": "rst-to-mdx",
+  "version": "1.0.0",
+  "description": "Convert reStructuredText (RST) files to MDX format",
+  "main": "dist/index.js",
+  "bin": {
+    "rst-to-mdx": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "jest"
+  },
+  "keywords": [
+    "rst",
+    "mdx",
+    "converter",
+    "markdown",
+    "restructuredtext"
+  ],
+  "bugs": {
+    "url": "https://github.com/Redot-Experimental/redot-experimental-docs/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Redot-Experimental/redot-experimental-docs.git"
+  },
+  "homepage": "https://github.com/Redot-Experimental/redot-experimental-docs#readme",
+  "author": "charlottewiltshire0",
+  "license": "MIT",
+  "dependencies": {
+    "@clack/prompts": "^0.7.0",
+    "commander": "^11.0.0",
+    "picocolors": "^1.0.0",
+    "rst-to-mdx": "file:"
+  },
+  "devDependencies": {
+    "@types/node": "^20.4.5",
+    "prettier": "3.5.3",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.6"
+  }
+}

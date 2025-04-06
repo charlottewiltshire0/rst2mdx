@@ -1,0 +1,26 @@
+.. _doc_your_first_2d_game_creating_the_enemy:
+
+---
+title: Creating the enemy
+---
+
+Now it's time to make the enemies our player will have to dodge. Their behavior will not be very complex: mobs will spawn randomly at the edges of the screen, choose a random direction, and move in a straight line.
+
+We'll create a `Mob` scene, which we can then *instance* to create any number of independent mobs in the game.
+
+### Node setup
+
+Click Scene -> New Scene from the top menu and add the following nodes:
+
+- [RigidBody2D](/engine/classes/class_rigidbody2d) (named `Mob`)
+- [AnimatedSprite2D](/engine/classes/class_animatedsprite2d)
+- [CollisionShape2D](/engine/classes/class_collisionshape2d)
+- [VisibleOnScreenNotifier2D](/engine/classes/class_visibleonscreennotifier2d)
+
+Don't forget to set the children so they can't be selected, like you did with the Player scene.
+
+Select the `Mob` node and set its `Gravity Scale` property in the [RigidBody2D](/engine/classes/class_rigidbody2d) section of the inspector to `0`. This will prevent the mob from falling downwards.
+
+In addition, under the [CollisionObject2D](/engine/classes/class_collisionobject2d) section just beneath the **RigidBody2D** section, expand the **Collision** group and uncheck the `1` inside the `Mask` property. This will ensure the mobs do not collide with each other.
+
+![Set collision mask](img/set_collision_mask.webp)
