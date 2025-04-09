@@ -33,7 +33,7 @@
     "@clack/prompts": "^0.7.0",
     "commander": "^11.0.0",
     "picocolors": "^1.0.0",
-    "rst-to-mdx": "file:"
+    "word-wrap": "^1.2.5"
   },
   "devDependencies": {
     "@types/node": "^20.4.5",
