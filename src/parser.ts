@@ -1,4 +1,4 @@
-import {logger} from "./logger";
+import { logger } from "./logger";
 
 export interface RSTNode {
   type: string;
@@ -12,6 +12,14 @@ export function parseRST(content: string): RSTNode[] {
   const nodes: RSTNode[] = [];
 
   let i = 0;
+  // Skip reference links at the beginning (e.g., ".. _doc_your_first_2d_game_creating_the_enemy:")
+  while (
+    i < lines.length &&
+    (lines[i].trim() === "" || lines[i].trim().match(/^\.\.\s+_[a-z0-9_]+:/))
+  ) {
+    i++;
+  }
+
   while (i < lines.length) {
     const line = lines[i].trim();
 
@@ -22,10 +30,7 @@ export function parseRST(content: string): RSTNode[] {
     }
 
     // Check for section headers (text underlined by ===, ---, etc.)
-    if (
-      i + 1 < lines.length &&
-      /^[=\-`~:'"^_*+#<>]{3,}$/.test(lines[i + 1].trim())
-    ) {
+    if (i + 1 < lines.length && /^[=\-`~:'"^_*+#<>]{3,}$/.test(lines[i + 1].trim())) {
       const level = getHeaderLevel(lines[i + 1].trim()[0]);
       nodes.push({
         type: "heading",
@@ -74,6 +79,8 @@ export function parseRST(content: string): RSTNode[] {
     i = paragraph.nextLine;
   }
 
+  console.log(nodes);
+
   return nodes;
 }
 
@@ -99,10 +106,7 @@ function getHeaderLevel(char: string): number {
   return levelMap[char] || 2; // Default to H2 if the character is not standard
 }
 
-function parseDirective(
-  lines: string[],
-  startLine: number,
-): { node: RSTNode; nextLine: number } {
+function parseDirective(lines: string[], startLine: number): { node: RSTNode; nextLine: number } {
   const line = lines[startLine].trim();
   const match = line.match(/^\.\.\s+(\w+)::(.*)/);
 
@@ -119,34 +123,87 @@ function parseDirective(
   let i = startLine + 1;
   let content = "";
   let indentation = 0;
+  let contentStarted = false;
 
   // Find the indentation level of the directive content
-  while (i < lines.length && lines[i].trim() === "") {
-    i++;
+  while (i < lines.length && !contentStarted) {
+    if (lines[i].trim() === "") {
+      i++;
+      continue;
+    }
+
+    const contentMatch = lines[i].match(/^(\s+)/);
+    if (contentMatch) {
+      indentation = contentMatch[1].length;
+      contentStarted = true;
+    } else {
+      // If we hit a line without indentation, it's not part of this directive
+      break;
+    }
   }
 
-  if (i < lines.length) {
-    const contentMatch = lines[i].match(/^(\s+)/);
-    indentation = contentMatch ? contentMatch[1].length : 0;
+  // If we didn't find any indented content, just return
+  if (!contentStarted) {
+    // For directives that might not need indented content (like image)
+    if (directiveType === "image") {
+      return {
+        node: {
+          type: "image",
+          content: directiveArg,
+          options: {},
+        },
+        nextLine: i,
+      };
+    }
+
+    return {
+      node: {
+        type: directiveType === "image" ? "image" : "directive",
+        content: "",
+        options: directiveType === "image" ? {} : { name: directiveType, argument: directiveArg },
+      },
+      nextLine: i,
+    };
   }
 
   // Collect the directive content
-  while (i < lines.length) {
-    const line = lines[i];
+  let directiveEnd = i;
+  while (directiveEnd < lines.length) {
+    const currentLine = lines[directiveEnd];
 
-    // If we hit a line with less indentation, we're out of the directive
-    if (line.trim() !== "" && !line.startsWith(" ".repeat(indentation))) {
+    // If line is empty, check if next line is still part of directive
+    if (currentLine.trim() === "") {
+      let nextNonEmptyLine = directiveEnd + 1;
+      while (nextNonEmptyLine < lines.length && lines[nextNonEmptyLine].trim() === "") {
+        nextNonEmptyLine++;
+      }
+
+      // If next non-empty line isn't indented enough, we're out of the directive
+      if (nextNonEmptyLine < lines.length) {
+        const nextLine = lines[nextNonEmptyLine];
+        if (!nextLine.startsWith(" ".repeat(indentation))) {
+          break;
+        }
+      }
+
+      // Add empty line to content
+      content += "\n";
+      directiveEnd++;
+      continue;
+    }
+
+    // If line doesn't have enough indentation, we're out of the directive
+    if (!currentLine.startsWith(" ".repeat(indentation))) {
       break;
     }
 
-    if (line.trim() !== "") {
-      content += line.substring(indentation) + "\n";
-    } else {
-      content += "\n";
-    }
-
-    i++;
+    // Add line to content, removing indentation
+    content += currentLine.substring(indentation) + "\n";
+    directiveEnd++;
   }
+
+  // Set i to the line after directive ends
+  i = directiveEnd;
 
   // Handle specific directives
   switch (directiveType) {
@@ -214,7 +271,7 @@ function parseOptions(content: string): Record<string, string> {
 function parseList(
   lines: string[],
   startLine: number,
-  pattern: RegExp,
+  pattern: RegExp
 ): { node: RSTNode; nextLine: number } {
   const items: RSTNode[] = [];
   let i = startLine;
@@ -230,10 +287,7 @@ function parseList(
         nextNonEmpty++;
       }
 
-      if (
-        nextNonEmpty < lines.length &&
-        lines[nextNonEmpty].trim().match(pattern)
-      ) {
+      if (nextNonEmpty < lines.length && lines[nextNonEmpty].trim().match(pattern)) {
         // Skip empty lines and continue with the list
         i = nextNonEmpty;
         continue;
@@ -255,26 +309,18 @@ function parseList(
 
   return {
     node: {
-      type: pattern.toString().includes("\\d+")
-        ? "orderedList"
-        : "unorderedList",
+      type: pattern.toString().includes("\\d+") ? "orderedList" : "unorderedList",
       children: items,
     },
     nextLine: i,
   };
 }
 
-function parseCodeBlock(
-  lines: string[],
-  startLine: number,
-): { node: RSTNode; nextLine: number } {
+function parseCodeBlock(lines: string[], startLine: number): { node: RSTNode; nextLine: number } {
   let content = "";
   let i = startLine;
 
-  while (
-    i < lines.length &&
-    (lines[i].startsWith("    ") || lines[i].trim() === "")
-  ) {
+  while (i < lines.length && (lines[i].startsWith("    ") || lines[i].trim() === "")) {
     if (lines[i].trim() !== "") {
       content += lines[i].substring(4) + "\n";
     } else {
@@ -293,11 +339,7 @@ function parseCodeBlock(
   };
 }
 
-
-function parseParagraph(
-  lines: string[],
-  startLine: number,
-): { node: RSTNode; nextLine: number } {
+function parseParagraph(lines: string[], startLine: number): { node: RSTNode; nextLine: number } {
   let content = "";
   let i = startLine;
 
@@ -337,7 +379,7 @@ function formatClassReference(refContent: string): string {
   }
 
   logger.warn(`Could not parse class reference format: ${refContent}`);
-  const fallbackText = refContent.replace(/<.*?>/g, '').trim(); // Basic cleanup
+  const fallbackText = refContent.replace(/<.*?>/g, "").trim(); // Basic cleanup
   return `[${fallbackText}](#${fallbackText.toLowerCase().replace(/\s+/g, "-")})`;
 }
 
@@ -353,16 +395,22 @@ function processInlineMarkup(text: string): string {
 
   // First, extract and replace all link patterns with placeholders to protect them
   // Capture and preserve RST external links: `text <url>`_ and `text <url>`__
-  processedText = processedText.replace(/`([^`<>]+)\s+<([^>]+)>`(__?)/g, (match, linkText, url, suffix) => {
-    const placeholder = `__LINK_${id++}__`;
-    processed.set(placeholder, `[${linkText.trim()}](${url.trim()})`);
-    return placeholder;
-  });
+  processedText = processedText.replace(
+    /`([^`<>]+)\s+<([^>]+)>`(__?)/g,
+    (match, linkText, url, suffix) => {
+      const placeholder = `__LINK_${id++}__`;
+      processed.set(placeholder, `[${linkText.trim()}](${url.trim()})`);
+      return placeholder;
+    }
+  );
 
   // Handle reference links: `text`_
   processedText = processedText.replace(/`([^`]+)`_/g, (match, linkText) => {
     const placeholder = `__LINK_${id++}__`;
-    processed.set(placeholder, `[${linkText.trim()}](#${linkText.trim().toLowerCase().replace(/\s+/g, '-')})`);
+    processed.set(
+      placeholder,
+      `[${linkText.trim()}](#${linkText.trim().toLowerCase().replace(/\s+/g, "-")})`
+    );
     return placeholder;
   });
 
@@ -382,25 +430,25 @@ function processInlineMarkup(text: string): string {
   // Process interpreted text roles - :role:`text`
   processedText = processedText.replace(/:([a-z-]+):`([^`]+)`/g, (match, role, content) => {
     switch (role) {
-      case 'code':
+      case "code":
         return `\`${content}\``;
-      case 'em':
-      case 'emphasis':
+      case "em":
+      case "emphasis":
         return `*${content}*`;
-      case 'strong':
+      case "strong":
         return `**${content}**`;
-      case 'literal':
+      case "literal":
         return `\`${content}\``;
-      case 'math':
+      case "math":
         return `$${content}$`;
-      case 'ref':
+      case "ref":
         // Check if it's a class reference using the new function
-        if (content.includes('<class_')) {
+        if (content.includes("<class_")) {
           return formatClassReference(content);
         }
         // Otherwise, treat as a standard internal reference link
-        return `[${content}](#${content.toLowerCase().replace(/\s+/g, '-')})`;
-      case 'doc':
+        return `[${content}](#${content.toLowerCase().replace(/\s+/g, "-")})`;
+      case "doc":
         return `[${content}](${content})`;
       default:
         return `<span className="${role}">${content}</span>`;
