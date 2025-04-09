@@ -14,9 +14,16 @@ program
   .option("-o, --output <output>", "Output directory for MDX files")
   .option("-r, --recursive", "Process directories recursively")
   .option("-v, --verbose", "Enable verbose output")
+  .option(
+    "-w, --width <number>",
+    "Maximum line width before wrapping (default: 80)",
+    (value) => parseInt(value, 10),
+    80
+  )
   .action(async (input, options) => {
     try {
       const isVerbose = !!options.verbose;
+      const wrapWidth = options.width;
 
       const inputPath = path.resolve(process.cwd(), input);
       const outputPath = options.output
@@ -26,6 +33,8 @@ program
       if (isVerbose) {
         logger.info(`Input path: ${inputPath}`);
         logger.info(`Output path: ${outputPath}`);
+        logger.info(`Recursive mode: ${options.recursive ? "enabled" : "disabled"}`);
+        logger.info(`Paragraph wrap width: ${wrapWidth > 0 ? wrapWidth : "disabled"}`);
       }
 
       const stats = await fs.stat(inputPath);
@@ -36,9 +45,9 @@ program
           return;
         }
 
-        await convertFile(inputPath, outputPath, isVerbose);
+        await convertFile(inputPath, outputPath, isVerbose, wrapWidth);
       } else if (stats.isDirectory()) {
-        await processDirectory(inputPath, outputPath, !!options.recursive, isVerbose);
+        await processDirectory(inputPath, outputPath, !!options.recursive, isVerbose, wrapWidth);
       }
 
       logger.success("Conversion completed successfully!");
@@ -48,7 +57,12 @@ program
     }
   });
 
-async function convertFile(inputFile: string, outputDir: string, verbose: boolean): Promise<void> {
+async function convertFile(
+  inputFile: string,
+  outputDir: string,
+  verbose: boolean,
+  wrapWidth: number
+): Promise<void> {
   const spinnerText = `Converting ${path.basename(inputFile)}`;
   const spinner = startSpinner(spinnerText);
 
@@ -70,7 +84,7 @@ async function convertFile(inputFile: string, outputDir: string, verbose: boolea
       logger.info("Converting to MDX");
     }
 
-    const mdxContent = convertToMDX(parsedContent);
+    const mdxContent = convertToMDX(parsedContent, wrapWidth);
     const outputFile = path.join(outputDir, path.basename(inputFile).replace(/\.rst$/, ".mdx"));
 
     if (verbose) {
@@ -107,7 +121,8 @@ async function processDirectory(
   inputDir: string,
   outputDir: string,
   recursive: boolean,
-  verbose: boolean
+  verbose: boolean,
+  wrapWidth: number
 ): Promise<void> {
   if (verbose) {
     logger.info(`Processing directory: ${inputDir}`);
@@ -131,10 +146,16 @@ async function processDirectory(
 
     if (entry.isFile() && entry.name.endsWith(".rst")) {
       fileCount++;
-      await convertFile(inputPath, path.dirname(outputPath), verbose);
+      await convertFile(inputPath, path.dirname(outputPath), verbose, wrapWidth);
     } else if (entry.isDirectory() && recursive) {
       dirCount++;
-      await processDirectory(inputPath, path.join(outputDir, entry.name), recursive, verbose);
+      await processDirectory(
+        inputPath,
+        path.join(outputDir, entry.name),
+        recursive,
+        verbose,
+        wrapWidth
+      );
     }
   }
 
