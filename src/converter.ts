@@ -54,6 +54,10 @@ function convertNode(node: RSTNode, wrapWidth: number): string {
   }
 }
 
+/**
+ * Converts a heading node to MDX heading format (e.g., ## Heading)
+ * @param node - Heading node
+ */
 function convertHeading(node: RSTNode): string {
   const level = Number.parseInt(node.options?.level || "2", 10);
   const hashes = "#".repeat(level);
@@ -70,11 +74,21 @@ function convertParagraph(node: RSTNode, wrapWidth: number): string {
   return wrapWidth > 0 ? wrap(content, { width: wrapWidth, indent: "" }) : content;
 }
 
+/**
+ * Converts an unordered list node to MDX format
+ * @param node - Unordered list node
+ * @param wrapWidth - Maximum line width for list item content
+ */
 function convertUnorderedList(node: RSTNode, wrapWidth: number): string {
   if (!node.children) return "";
   return node.children.map((item) => `- ${convertNode(item, wrapWidth)}`).join("\n");
 }
 
+/**
+ * Converts an ordered list node to MDX format
+ * @param node - Ordered list node
+ * @param wrapWidth - Maximum line width for list item content
+ */
 function convertOrderedList(node: RSTNode, wrapWidth: number): string {
   if (!node.children) return "";
   return node.children
@@ -82,15 +96,27 @@ function convertOrderedList(node: RSTNode, wrapWidth: number): string {
     .join("\n");
 }
 
+/**
+ * Converts a list item node (primarily its content)
+ * @param node - List item node
+ */
 function convertListItem(node: RSTNode): string {
   return node.content || "";
 }
 
+/**
+ * Converts a code block node to MDX fenced code block format
+ * @param node - Code block node
+ */
 function convertCodeBlock(node: RSTNode): string {
   const language = node.options?.language || "";
   return "```" + language + "\n" + (node.content || "") + "\n```";
 }
 
+/**
+ * Converts an image node to MDX image format
+ * @param node - Image node
+ */
 function convertImage(node: RSTNode): string {
   const src = node.content || "";
   let alt = node.options?.alt || "";
@@ -104,16 +130,20 @@ function convertImage(node: RSTNode): string {
   return `![${alt}](${src})`;
 }
 
+/**
+ * Converts an admonition node (note, warning, etc.) to the requested ::: format
+ * @param node - Admonition node
+ * @param wrapWidth - Maximum line width for the content
+ */
 function convertAdmonition(node: RSTNode, wrapWidth: number): string {
-  const kind = node.options?.kind || "note";
-  const title = capitalizeFirstLetter(kind);
+  const rawKind = node.options?.kind || "note";
+  const validKinds = ["note", "warning", "danger", "tip"];
+  const kind = validKinds.includes(rawKind) ? rawKind : "note";
+
   const content = node.content || "";
   const wrappedContent = wrapWidth > 0 ? wrap(content, { width: wrapWidth, indent: "" }) : content;
-  return `<Admonition type="${kind}" title="${title}">
 
-${wrappedContent}
-
-</Admonition>`;
+  return `:::${kind}\n\n${wrappedContent}\n\n:::`;
 }
 
 function convertDirective(node: RSTNode, wrapWidth: number): string {
@@ -137,6 +167,7 @@ ${wrappedContent}
 */}`;
   }
 }
+
 function capitalizeFirstLetter(string: string): string {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
